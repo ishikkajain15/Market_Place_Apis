@@ -19,4 +19,4 @@ router.use('/cruises', cruisesRouter);
 router.use('/cruiselines', cruiselinesRouter);
 router.use('/destinations', destinationsRouter);
 
-export default router;
+export default router;  
