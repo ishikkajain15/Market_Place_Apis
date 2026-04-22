@@ -3,6 +3,8 @@ import { db } from '../db.js';
 import cruisesRouter from './cruises.js';
 import cruiselinesRouter from './cruiselines.js';
 import destinationsRouter from './destinations.js';
+import itinerariesRouter from './itineraries.js';
+import portsRouter from './ports.js';
 
 const router = Router();
 
@@ -16,6 +18,9 @@ router.get('/health', async (req, res, next) => {
 });
 
 router.use('/cruises', cruisesRouter);
+router.use('/itineraries', itinerariesRouter);
+router.use('/ports', portsRouter);
+
 router.use('/cruiselines', cruiselinesRouter);
 router.use('/destinations', destinationsRouter);
 
