@@ -6,6 +6,8 @@ import { client } from './db.js';
 import routes from './routes/index.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
+
+
 const app = express();
 
 app.disable('x-powered-by');
@@ -17,6 +19,8 @@ app.use('/api', routes);
 
 app.use(notFound);
 app.use(errorHandler);
+
+
 
 const server = app.listen(config.port, () => {
   console.log(`[server] listening on http://localhost:${config.port}`);

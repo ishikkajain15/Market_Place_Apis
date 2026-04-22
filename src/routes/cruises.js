@@ -14,7 +14,7 @@ const cruises = db.collection('cruises');
 //     ship/cruiseline info is served by the cruiselines endpoint.
 function buildPipeline(matchStage) {
   return [
-    { $match: matchStage },
+    { $match: {...matchStage, cruiseType: "CruiseOnly"} },
 
     {
       $lookup: {
@@ -148,7 +148,7 @@ router.get('/', async (req, res, next) => {
 
     const [data, total] = await Promise.all([
       cruises.aggregate(pipeline, { maxTimeMS: 15_000000 }).toArray(),
-      cruises.estimatedDocumentCount(),
+      cruises.countDocuments({ cruiseType: 'CruiseOnly' }),
     ]);
 
     res.json({
