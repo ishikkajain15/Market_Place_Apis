@@ -30,35 +30,35 @@ function buildPipeline(matchStage) {
           { $sort: { _id: 1 } },
 
           // Re-group into single doc with days array; compute dates.
-          {
-            $group: {
-              _id: null,
-              days: {
-                $push: {
-                  day: '$_id',
-                  date: {
-                    $dateToString: {
-                      format: '%d-%b-%Y',
-                      date: {
-                        $dateAdd: {
-                          startDate: {
-                            $dateFromString: {
-                              dateString: '$$startDate',
-                              format: '%d-%b-%Y',
-                            },
-                          },
-                          unit: 'day',
-                          amount: '$_id',
-                        },
-                      },
-                    },
-                  },
-                  portCodes: '$portCodes',
-                },
-              },
-            },
-          },
-          { $project: { _id: 0 } },
+          // {
+          //   $group: {
+          //     _id: null,
+          //     days: {
+          //       $push: {
+          //         day: '$_id',
+          //         date: {
+          //           $dateToString: {
+          //             format: '%d-%b-%Y',
+          //             date: {
+          //               $dateAdd: {
+          //                 startDate: {
+          //                   $dateFromString: {
+          //                     dateString: '$$startDate',
+          //                     format: '%d-%b-%Y',
+          //                   },
+          //                 },
+          //                 unit: 'day',
+          //                 amount: '$_id',
+          //               },
+          //             },
+          //           },
+          //         },
+          //         portCodes: '$portCodes',
+          //       },
+          //     },
+          //   },
+          // },
+          // { $project: { _id: 0 } },
         ],
         as: '_itin',
       },
@@ -95,7 +95,7 @@ function buildPipeline(matchStage) {
           type: '$itinerary.arrival.type',
         },
         destinationImagePath: 1,
-        days: { $ifNull: ['$_itin.days', []] },
+        // days: { $ifNull: ['$_itin.days', []] },
       },
     },
   ];

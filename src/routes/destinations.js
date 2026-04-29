@@ -12,6 +12,9 @@ import { db } from '../db.js';
 const router = Router();
 const destinations = db.collection('destination_masters');
 
+// At the top of the file, after imports
+const portCodesCache = new Map();
+
 // Override map for names that i18n-iso-countries doesn't resolve.
 const OVERRIDES = {
   'Great Britain': 'GB',
@@ -45,23 +48,23 @@ router.get('/', async (req, res, next) => {
     // For a region, find all descendants via parentId chain and collect
     // their resolved country codes. Only goes 2–3 levels deep.
     function getDescendantCodes(parentIdStr, visited = new Set()) {
-  if (visited.has(parentIdStr)) return new Set();
-  visited.add(parentIdStr);
+      if (visited.has(parentIdStr)) return new Set();
+      visited.add(parentIdStr);
 
-  const codes = new Set();
-  for (const d of allDocs) {
-    if (d.parentId === parentIdStr && String(d.id) !== parentIdStr) {
-      const code = codeMap.get(d.id);
-      if (code) {
-        codes.add(code);
-      } else {
-        const subCodes = getDescendantCodes(String(d.id), visited);
-        for (const sc of subCodes) codes.add(sc);
+      const codes = new Set();
+      for (const d of allDocs) {
+        if (d.parentId === parentIdStr && String(d.id) !== parentIdStr) {
+          const code = codeMap.get(d.id);
+          if (code) {
+            codes.add(code);
+          } else {
+            const subCodes = getDescendantCodes(String(d.id), visited);
+            for (const sc of subCodes) codes.add(sc);
+          }
+        }
       }
+      return codes;
     }
-  }
-  return codes;
-}
 
     const data = allDocs.map(d => {
       const isoCode = codeMap.get(d.id);
@@ -99,5 +102,118 @@ router.get('/', async (req, res, next) => {
     next(err);
   }
 });
+
+// GET /api/destinations/:id/ports
+// router.get('/:id/ports', async (req, res, next) => {
+//   try {
+//     const id = Number(req.params.id);
+//     if (!Number.isFinite(id)) {
+//       return res.status(404).json({ error: 'Destination not found' });
+//     }
+
+//     const dest = await destinations.findOne(
+//       { id, active: true },
+//       { projection: { _id: 0, id: 1, name: 1, parentId: 1 } }
+//     );
+
+//     if (!dest) {
+//       return res.status(404).json({ error: 'Destination not found' });
+//     }
+
+//     const isoCode = nameToIsoCode(dest.name);
+//     let countryCodes;
+
+//     if (isoCode) {
+//       countryCodes = [isoCode];
+//     } else {
+//       const allDocs = await destinations
+//         .find({ active: true }, { projection: { _id: 0, id: 1, name: 1, parentId: 1 } })
+//         .toArray();
+
+//       const visited = new Set();
+      
+//       function getDescendantCodes(parentIdStr) {
+//         if (visited.has(parentIdStr)) return new Set();
+//         visited.add(parentIdStr);
+//         const codes = new Set();
+//         for (const d of allDocs) {
+//           if (d.parentId === parentIdStr && String(d.id) !== parentIdStr) {
+//             const code = nameToIsoCode(d.name);
+//             if (code) {
+//               codes.add(code);
+//             } else {
+//               const subCodes = getDescendantCodes(String(d.id));
+//               for (const sc of subCodes) codes.add(sc);
+//             }
+//           }
+//         }
+//         return codes;
+//       }
+
+//       countryCodes = [...getDescendantCodes(String(id))].sort();
+//     }
+
+//     const portsMasters = db.collection('port_masters');
+//     const cruisesCol = db.collection('cruises');
+//     let portCodes;
+
+//     if (countryCodes.length > 0) {
+//       // Path 1 — unchanged, already fast
+//       const docs = await portsMasters
+//         .find(
+//           { active: true, 'settings.countryId': { $in: countryCodes } },
+//           { projection: { _id: 0, code: 1 } }
+//         )
+//         .sort({ code: 1 })
+//         .toArray();
+
+//       portCodes = docs.map(d => d.code);
+//     } else {
+//       // Path 2 — check cache first
+//       if (portCodesCache.has(id)) {
+//         portCodes = portCodesCache.get(id);
+//       } else {
+//         const cruiseDocs = await cruisesCol
+//           .find(
+//             {
+//               $or: [{ 'destination.id': id }, { parentDestinationIds: id }],
+//               status: 'Publish',
+//               isActive: true,
+//             },
+//             { projection: { _id: 0, 'itinerary.normalizedPortsOfCall': 1 } }
+//           )
+//           .toArray();
+
+//         const codeSet = new Set();
+//         for (const doc of cruiseDocs) {
+//           const raw = doc.itinerary?.normalizedPortsOfCall;
+//           if (raw) {
+//             for (const code of raw.split('|')) {
+//               const trimmed = code.trim();
+//               // Skip numeric codes — they're IDs, not port codes
+//               if (trimmed && !/^\d+$/.test(trimmed)) {
+//                 codeSet.add(trimmed);
+//               }
+//             }
+//           }
+//         }
+
+//         portCodes = [...codeSet].sort();
+//         portCodesCache.set(id, portCodes);
+//       }
+//     }
+
+//     res.json({
+//       destinationId: id,
+//       destinationName: dest.name,
+//       countryCodes,
+//       source: countryCodes.length > 0 ? 'countryCodes' : 'cruiseData',
+//       total: portCodes.length,
+//       portCodes,
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// });
 
 export default router;
