@@ -78,8 +78,28 @@ function buildPipeline(matchStage) {
         voyageId: 1,
         name: 1,
         cruiseType: 1,
-        startDate: '$startDateTime',
-        endDate: '$endDateTime',
+        startDate: {
+  $dateToString: {
+    format: '%d/%m/%Y',
+    date: {
+      $dateFromString: {
+        dateString: '$startDateTime',
+        format: '%d-%b-%Y',
+      },
+    },
+  },
+},
+endDate: {
+  $dateToString: {
+    format: '%d/%m/%Y',
+    date: {
+      $dateFromString: {
+        dateString: '$endDateTime',
+        format: '%d-%b-%Y',
+      },
+    },
+  },
+},
         duration: { $ifNull: ['$itinerary.duration', '$cruiseDuration'] },
         shipId: '$ship.id',
         cruiselineId: '$ship.cruiseline.id',
