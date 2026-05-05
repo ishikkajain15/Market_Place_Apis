@@ -1,8 +1,15 @@
 services:
-  api:
-    build: .
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tirunmarketing/marketplace:latest
+    container_name: marketplace
+    restart: unless-stopped
     ports:
       - "3000:3000"
     env_file:
       - .env
-    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000

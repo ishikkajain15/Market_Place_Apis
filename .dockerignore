@@ -1,4 +1,44 @@
-node_modules
+# Version control
 .git
+.gitignore
+.gitattributes
+
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files — NEVER bake secrets into the image
 .env
-*.md
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Build output / logs / coverage
+dist
+build
+coverage
+logs
+*.log
+
+# Docker files themselves
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Tests (optional — remove if you want them in the image)
+tests
+__tests__
+*.test.js
+*.spec.js
+
+# Misc
+README.md
+LICENSE

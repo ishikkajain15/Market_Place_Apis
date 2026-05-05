@@ -5,10 +5,15 @@ import { config } from './config.js';
 import { client } from './db.js';
 import routes from './routes/index.js';
 import { notFound, errorHandler } from './middleware/error.js';
+import cors from "cors";
 
-
+const corsOptions = {
+  origin: '*', // Change this to your frontend's origin in production
+  credentials: true
+};
 
 const app = express();
+app.use(cors(corsOptions));
 
 app.disable('x-powered-by');
 app.use(helmet());
