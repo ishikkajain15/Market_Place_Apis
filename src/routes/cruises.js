@@ -80,7 +80,7 @@ function buildPipeline(matchStage) {
         cruiseType: 1,
         startDate: {
   $dateToString: {
-    format: '%d/%m/%Y',
+    format: '%d-%b-%Y',
     date: {
       $dateFromString: {
         dateString: '$startDateTime',
@@ -91,7 +91,7 @@ function buildPipeline(matchStage) {
 },
 endDate: {
   $dateToString: {
-    format: '%d/%m/%Y',
+    format: '%d-%b-%Y',
     date: {
       $dateFromString: {
         dateString: '$endDateTime',
