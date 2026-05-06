@@ -6,71 +6,75 @@ const cruises = db.collection('cruises');
 
 const BASE_MATCH = { status: 'Publish', isActive: true, cruiseType: 'CruiseOnly' };
 
-function buildPipeline(matchStage) {
-  return [
-    { $match: { ...BASE_MATCH, ...matchStage } },
-
-    // Lookup cruise_itineraries — only to build the lightweight days array.
-    {
-      $lookup: {
-        from: 'cruise_itineraries',
-        let: { itinId: '$itinerary.id', startDate: '$startDateTime' },
-        pipeline: [
-          { $match: { $expr: { $eq: ['$id', '$$itinId'] } } },
-          { $project: { _id: 0, nodes: 1 } },
-          { $unwind: '$nodes' },
-
-          // Group by dayOffSet, collect only internalCode per port.
-          {
-            $group: {
-              _id: { $ifNull: ['$nodes.dayOffSet', 0] },
-              portCodes: { $push: '$nodes.port.internalCode' },
+// ---------------------------------------------------------------------------
+// One-time setup: backfill real Date fields + create index.
+// Runs once at module load. Safe to re-run — only updates docs missing the
+// fields, and createIndex is idempotent.
+// ---------------------------------------------------------------------------
+async function ensureIndexesAndBackfill() {
+  try {
+    const result = await cruises.updateMany(
+      {
+        $or: [
+          { startDate: { $exists: false } },
+          { endDate: { $exists: false } },
+        ],
+      },
+      [
+        {
+          $set: {
+            startDate: {
+              $dateFromString: {
+                dateString: '$startDateTime',
+                format: '%d-%b-%Y',
+                onError: null,
+                onNull: null,
+              },
+            },
+            endDate: {
+              $dateFromString: {
+                dateString: '$endDateTime',
+                format: '%d-%b-%Y',
+                onError: null,
+                onNull: null,
+              },
             },
           },
-          { $sort: { _id: 1 } },
+        },
+      ],
+    );
+    if (result.modifiedCount > 0) {
+      console.log(`[cruises] backfilled startDate/endDate on ${result.modifiedCount} docs`);
+    }
 
-          // Re-group into single doc with days array; compute dates.
-          // {
-          //   $group: {
-          //     _id: null,
-          //     days: {
-          //       $push: {
-          //         day: '$_id',
-          //         date: {
-          //           $dateToString: {
-          //             format: '%d-%b-%Y',
-          //             date: {
-          //               $dateAdd: {
-          //                 startDate: {
-          //                   $dateFromString: {
-          //                     dateString: '$$startDate',
-          //                     format: '%d-%b-%Y',
-          //                   },
-          //                 },
-          //                 unit: 'day',
-          //                 amount: '$_id',
-          //               },
-          //             },
-          //           },
-          //         },
-          //         portCodes: '$portCodes',
-          //       },
-          //     },
-          //   },
-          // },
-          // { $project: { _id: 0 } },
-        ],
-        as: '_itin',
-      },
-    },
+    await cruises.createIndex(
+      { status: 1, isActive: 1, cruiseType: 1, startDate: 1 },
+      { name: 'base_match_startDate' },
+    );
 
+    console.log('[cruises] indexes ensured');
+  } catch (err) {
+    console.error('[cruises] index/backfill setup failed:', err);
+  }
+}
+
+ensureIndexesAndBackfill();
+
+// ---------------------------------------------------------------------------
+
+function buildPipeline(matchStage) {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  return [
     {
-      $addFields: {
-        _itin: { $arrayElemAt: ['$_itin', 0] },
+      $match: {
+        ...BASE_MATCH,
+        ...matchStage,
+        startDate: { $gte: today },
       },
     },
-
-    // Final shape — flat, renamed fields, no nested ship/cruiseline objects.
+    { $sort: { startDate: 1 } },
     {
       $project: {
         _id: 0,
@@ -78,28 +82,8 @@ function buildPipeline(matchStage) {
         voyageId: 1,
         name: 1,
         cruiseType: 1,
-        startDate: {
-  $dateToString: {
-    format: '%d-%b-%Y',
-    date: {
-      $dateFromString: {
-        dateString: '$startDateTime',
-        format: '%d-%b-%Y',
-      },
-    },
-  },
-},
-endDate: {
-  $dateToString: {
-    format: '%d-%b-%Y',
-    date: {
-      $dateFromString: {
-        dateString: '$endDateTime',
-        format: '%d-%b-%Y',
-      },
-    },
-  },
-},
+        startDate: { $dateToString: { format: '%Y-%m-%d', date: '$startDate' } },
+        endDate: { $dateToString: { format: '%Y-%m-%d', date: '$endDate' } },
         duration: { $ifNull: ['$itinerary.duration', '$cruiseDuration'] },
         shipId: '$ship.id',
         cruiselineId: '$ship.cruiseline.id',
@@ -115,56 +99,29 @@ endDate: {
           type: '$itinerary.arrival.type',
         },
         destinationImagePath: 1,
-        // days: { $ifNull: ['$_itin.days', []] },
       },
     },
   ];
 }
 
-// GET /api/cruises?limit=500&skip=0
+// GET /api/cruises
 router.get('/', async (req, res, next) => {
   try {
-    const limit = Math.min(Number(req.query.limit) || 500, 500);
-    const skip = Math.max(Number(req.query.skip) || 0, 0);
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
 
-    const pipeline = [
-      ...buildPipeline({}),
-      { $skip: skip },
-      { $limit: limit },
-    ];
+    const pipeline = buildPipeline({});
 
     const [data, total] = await Promise.all([
-      cruises.aggregate(pipeline, { maxTimeMS: 30_000 }).toArray(),
-      cruises.countDocuments(BASE_MATCH),
+      cruises.aggregate(pipeline, { maxTimeMS: 60_000, allowDiskUse: true }).toArray(),
+      cruises.countDocuments({ ...BASE_MATCH, startDate: { $gte: today } }),
     ]);
 
     res.json({
       total,
       count: data.length,
-      limit,
-      skip,
       data,
     });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/cruises/:id
-router.get('/:id', async (req, res, next) => {
-  try {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
-      return res.status(404).json({ error: 'Cruise not found' });
-    }
-
-    const pipeline = buildPipeline({ id });
-    const docs = await cruises.aggregate(pipeline, { maxTimeMS: 10_000 }).toArray();
-
-    if (docs.length === 0) {
-      return res.status(404).json({ error: 'Cruise not found' });
-    }
-    res.json(docs[0]);
   } catch (err) {
     next(err);
   }
