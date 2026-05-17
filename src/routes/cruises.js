@@ -112,6 +112,12 @@ router.get('/', async (req, res, next) => {
 
     const pipeline = buildPipeline({});
 
+    const skip  = Math.max(0, parseInt(req.query.skip,  10) || 0);
+    const limit = Math.max(1, parseInt(req.query.limit, 10) || 2000);
+
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limit });
+
     const [data, total] = await Promise.all([
       cruises.aggregate(pipeline, { maxTimeMS: 60_000, allowDiskUse: true }).toArray(),
       cruises.countDocuments({ ...BASE_MATCH, startDate: { $gte: today } }),
@@ -119,6 +125,8 @@ router.get('/', async (req, res, next) => {
 
     res.json({
       total,
+      skip,
+      limit,
       count: data.length,
       data,
     });

@@ -25,8 +25,14 @@ function buildPipeline(matchStage) {
         from: 'ship_masters',
         let: { cruiselineId: { $toString: '$id' } },
         pipeline: [
-          { $match: { $expr: { $eq: ['$parentId', '$$cruiselineId'] } } },
-          { $project: { _id: 0, id: 1, name: 1, active: 1 } },
+          {
+            $match: {
+              $expr: { $eq: ['$parentId', '$$cruiselineId'] },
+              active: true,
+            },
+        
+          },
+          { $project: { _id: 0, id: 1, name: 1 } },
         ],
         as: 'ships',
       },
@@ -104,7 +110,6 @@ function buildPipeline(matchStage) {
         _id: 0,
         id: 1,
         name: 1,
-        active: 1,
         logoPath: 1,
         ships: 1,
       },
@@ -118,15 +123,17 @@ router.get('/', async (req, res, next) => {
     const limit = Math.min(Number(req.query.limit) || 500, 500);
     const skip = Math.max(Number(req.query.skip) || 0, 0);
 
+    const filter = { active: true };
+
     const pipeline = [
-      ...buildPipeline({}),
+      ...buildPipeline(filter),
       { $skip: skip },
       { $limit: limit },
     ];
 
     const [data, total] = await Promise.all([
-      cruiselines.aggregate(pipeline, { maxTimeMS: 15_000000 }).toArray(),
-      cruiselines.estimatedDocumentCount(),
+      cruiselines.aggregate(pipeline, { maxTimeMS: 15_000 }).toArray(),
+      cruiselines.countDocuments(filter),
     ]);
 
     res.json({
@@ -149,7 +156,7 @@ router.get('/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Cruiseline not found' });
     }
 
-    const pipeline = buildPipeline({ id });
+    const pipeline = buildPipeline({ id , active:true});
     const docs = await cruiselines.aggregate(pipeline, { maxTimeMS: 10_000 }).toArray();
 
     if (docs.length === 0) {
