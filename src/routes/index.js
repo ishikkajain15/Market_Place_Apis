@@ -17,7 +17,7 @@ router.get('/health', async (req, res, next) => {
   }
 });
 
-router.use('/cruises', cruisesRouter);
+router.use('/cruises', cruisesRouter);    
 router.use('/itineraries', itinerariesRouter);
 router.use('/ports', portsRouter);
 
